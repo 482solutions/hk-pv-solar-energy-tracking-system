@@ -10,7 +10,7 @@ import threading
 import hashlib
 
 from substrateinterface import Keypair
-from pvstation import PVStation
+from pv_station import PVStation
 
 logger = logging.getLogger(__name__)
 logger.propagate = False

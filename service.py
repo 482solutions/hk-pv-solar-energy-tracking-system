@@ -11,7 +11,7 @@ from substrateinterface import SubstrateInterface, Keypair
 from substrateinterface.exceptions import SubstrateRequestException
 import ast
 
-from pvstation import PVStation, PVStationNFTMetadata
+from pv_station import PVStation, PVStationNFTMetadata
 
 logger = logging.getLogger(__name__)
 logger.propagate = False
