@@ -5,12 +5,13 @@ import yaml
 
 
 class PVStation:
-    def __init__(self, company_registry_number="", power_station_id="", power_generation_timestamp=0, power_reserved=0, power_generated_for_sale=0) -> None:
+    def __init__(self, company_registry_number="", power_station_id="", power_generation_timestamp=0, power_reserved=0, power_generated_for_sale=0, payment_account_address="") -> None:
         self.company_registry_number = company_registry_number
         self.power_station_id = power_station_id
         self.power_generation_timestamp = power_generation_timestamp
         self.power_reserved = power_reserved
         self.power_generated_for_sale = power_generated_for_sale
+        self.payment_account_address = payment_account_address
 
     def __iter__(self):
         yield from {
@@ -18,7 +19,8 @@ class PVStation:
             "power_station_id": self.power_station_id,
             "power_generation_timestamp": self.power_generation_timestamp,
             "power_reserved": self.power_reserved,
-            "power_generated_for_sale": self.power_generated_for_sale
+            "power_generated_for_sale": self.power_generated_for_sale,
+            "payment_account_address": self.payment_account_address
         }.items()
 
     def __str__(self):
@@ -39,7 +41,8 @@ class PVStation:
                          json_dct["power_station_id"],
                          json_dct["power_generation_timestamp"],
                          json_dct["power_reserved"],
-                         json_dct["power_generated_for_sale"])
+                         json_dct["power_generated_for_sale"],
+                         json_dct["payment_account_address"])
 
     @staticmethod
     def from_yaml(file_path):
@@ -51,13 +54,19 @@ class PVStation:
                          0 if "power_generation_timestamp" not in yaml_config else yaml_config[
                              "power_generation_timestamp"],
                          0 if "power_reserved" not in yaml_config else yaml_config["power_reserved"],
-                         0 if "power_generated_for_sale" not in yaml_config else yaml_config["power_generated_for_sale"])
+                         0 if "power_generated_for_sale" not in yaml_config else yaml_config[
+                             "power_generated_for_sale"],
+                         yaml_config["payment_account_address"])
 
     def load_produced_power_data(self) -> float:
         station_data_file_path = f"./data/{self.company_registry_number}/{self.power_station_id}"
         if os.path.exists(station_data_file_path):
             with open(station_data_file_path) as f:
-                produced_total = float(f.readline().split(": ")[1])  # in MW
+                try:
+                    produced_total = float(
+                        f.readline().split(": ")[1])  # in MW
+                except:
+                    produced_total = 0
         else:
             produced_total = 0
 
@@ -77,3 +86,26 @@ class PVStation:
 
         with open(f"{data_folder_path}/{self.power_station_id}", "w") as f:
             f.write(f"{time.time()}: {self.power_reserved}")
+
+
+class PVStationNFTMetadata:
+    def __init__(self, power_mw=0, owner_addr="", price=0) -> None:
+        self.power_mw = power_mw
+        self.owner_addr = owner_addr
+        self.price = price
+
+    def __iter__(self):
+        yield from {
+            "power_mw": self.power_mw,
+            "owner_addr": self.owner_addr,
+            "price": self.price
+        }.items()
+
+    def __str__(self):
+        return json.dumps(dict(self), ensure_ascii=False)
+
+    def __repr__(self):
+        return self.__str__()
+
+    def to_json(self):
+        return self.__str__()

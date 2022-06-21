@@ -7,6 +7,7 @@ import random
 import logging
 import argparse
 import threading
+import hashlib
 
 from substrateinterface import Keypair
 from pvstation import PVStation
@@ -36,7 +37,7 @@ class PlugMonitoring:
 
     def check_balance(self) -> None:
         info = self.load_account_balance(self.ss58_address)
-        if info.value['data']['free'] > 0:
+        if info.value["data"]["free"] > 0:
             logger.info(f"Balance is OK")
             balance = True
         else:
@@ -44,26 +45,28 @@ class PlugMonitoring:
             balance = False
         while not balance:
             info = self.load_account_balance(self.ss58_address)
-            if info.value['data']['free'] > 0:
+            if info.value["data"]["free"] > 0:
                 balance = True
                 logger.info(f"Balance OK")
 
     def send_launch(self) -> None:
-        logger.info(f"Check topic exists")
+        logger.info(f"Check if topic for plug device exists")
 
         twins_num = self.interface.custom_chainstate("DigitalTwin", "Total")
         if twins_num.value is None:
             logger.error(
                 "Please create digital twin from service_address account to proceed with station plug communication and restart service!")
-            return
+            exit(1)
 
         twin_id = None
+
         for i in range(twins_num.value):
             owner = self.interface.custom_chainstate(
                 "DigitalTwin", "Owner", int(i))
             logger.info(f"Twin owner: {owner}")
             if owner.value == self.service_address:
                 twin_id = i
+                logger.info(f"Owner twin found (id {twin_id})")
                 break
 
         if twin_id is None:
@@ -71,11 +74,10 @@ class PlugMonitoring:
                 f"Twin id where owner is {self.service_address} was not found. Please create digital twin to proceed!")
             sys.exit(1)
 
-        logger.info(f"Twin id : {twin_id}")
         topics = self.interface.custom_chainstate(
             "DigitalTwin", "DigitalTwin", twin_id)
         plug_address = Keypair.create_from_mnemonic(
-            self.plug_seed).ss58_address
+            self.plug_seed, ss58_format=32).ss58_address
         if topics.value is None:
             topics_list = []
         else:
@@ -87,7 +89,7 @@ class PlugMonitoring:
         else:
             logger.info(f"Sending launch to add topic")
             hash = self.interface.send_launch(
-                self.service_address, "0x0000000000000000000000000000000000000000000000000000000000000002")
+                self.service_address, hex(int.from_bytes(hashlib.sha256(b"H").digest()[:32], "little")))
             logger.info(f"Launch created with hash {hash}")
 
     def send_datalog(self, data: dict) -> None:
@@ -98,7 +100,7 @@ class PlugMonitoring:
     def solar_panel_data_simulator(self, message: str) -> None:
         pv_station = PVStation(**json.loads(message))
         # logger.info(f"Received PV power station data : {pv_station}")
-        if (time.time() - self.prev_time_sending) > self.config['sending_timeout'] and \
+        if (time.time() - self.prev_time_sending) > self.config["sending_timeout"] and \
                 pv_station.power_reserved > 1:
             pv_station.power_generated_for_sale = int(
                 pv_station.power_reserved)
@@ -114,25 +116,25 @@ class PlugMonitoring:
         if "plug_seed" not in config_file:
             mnemonic = Keypair.generate_mnemonic()
             logger.info(
-                f"Generated account with address: {Keypair.create_from_mnemonic(mnemonic).ss58_address}")
+                f"Generated account with address: {Keypair.create_from_mnemonic(mnemonic, ss58_format=32).ss58_address}")
             config_file["plug_seed"] = mnemonic
             with open(path, "w") as f:
                 yaml.dump(config_file, f)
         else:
             logger.info(
-                f"Your station plug address is {Keypair.create_from_mnemonic(config_file['plug_seed']).ss58_address}")
+                f"Your station plug address is {Keypair.create_from_mnemonic(config_file['plug_seed'], ss58_format=32).ss58_address}")
 
         return config_file
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description='Parse argument for PV power station plug module.')
-    parser.add_argument('--yaml-station-data', dest='yaml_station_data',
-                        help='Path to YAML configuration file with test data for PV power station configuration',
+        description="Parse argument for PV power station plug module.")
+    parser.add_argument("--yaml-station-data", dest="yaml_station_data",
+                        help="Path to YAML configuration file with test data for PV power station configuration",
                         required=True)
-    parser.add_argument('--station-config', dest='station_config',
-                        help='Path to YAML file with parachain configuration for PV power station',
+    parser.add_argument("--station-config", dest="station_config",
+                        help="Path to YAML file with parachain configuration for PV power station",
                         required=True)
     args = parser.parse_args()
 
@@ -144,3 +146,5 @@ if __name__ == '__main__':
         station.update_produced_power_data(random.uniform(0, 1))
 
         monitor.solar_panel_data_simulator(station.to_json())
+        # Update generated value each 360 seconds
+        time.sleep(360)

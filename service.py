@@ -3,16 +3,15 @@ import typing as tp
 import robonomicsinterface as RI
 import yaml
 import hashlib
+import random
 import logging
 import sys
 import threading
 from substrateinterface import SubstrateInterface, Keypair
 from substrateinterface.exceptions import SubstrateRequestException
-import time
-import os
 import ast
 
-from pvstation import PVStation
+from pvstation import PVStation, PVStationNFTMetadata
 
 logger = logging.getLogger(__name__)
 logger.propagate = False
@@ -22,18 +21,18 @@ handler.setFormatter(formatter)
 logger.addHandler(handler)
 logger.setLevel(logging.INFO)
 
-TWIN_ID = 0
 
-
-class FootprintService:
+class PVService:
     def __init__(self) -> None:
         with open("./config/config_service.yaml") as f:
             self.config = yaml.safe_load(f)
         self.interface = RI.RobonomicsInterface(
             self.config["robonomics"]["seed"], remote_ws="ws://127.0.0.1:9944")
-        self.statemine_keypair = Keypair.create_from_mnemonic(
-            self.config["statemine"]["seed"]
+        self.westmint_keypair = Keypair.create_from_mnemonic(
+            self.config["westmint"]["seed"], ss58_format=42
         )
+        self.substrate_interface = self.westmint_connect()
+        self.twin_id = self.config["robonomics"]["twin_id"]
         threading.Thread(target=self.launch_listener,
                          name="LaunchListener").start()
 
@@ -53,7 +52,7 @@ class FootprintService:
                 break
         else:
             name = hashlib.sha256(bytes(topic_num)).hexdigest()
-            params = {"id": TWIN_ID, "topic": f"0x{name}",
+            params = {"id": self.twin_id, "topic": f"0x{name}",
                       "source": plug_address}
             hash = self.interface.custom_extrinsic(
                 "DigitalTwin", "set_source", params)
@@ -66,7 +65,7 @@ class FootprintService:
 
     def get_twins_list(self) -> tp.List[tp.Tuple[str, str]]:
         twin = self.interface.custom_chainstate(
-            "DigitalTwin", "DigitalTwin", TWIN_ID)
+            "DigitalTwin", "DigitalTwin", self.twin_id)
 
         if twin is None:
             return None
@@ -74,47 +73,135 @@ class FootprintService:
         twins_list = twin.value
         return twins_list
 
-    def statemine_connect(self) -> SubstrateInterface:
-        # For now I am using Westmint (it is a test network)
+    def westmint_connect(self) -> SubstrateInterface:
+        # For now using Westmint (it is a test network)
         interface = SubstrateInterface(
-            url=self.config["statemine"]["endpoint"],
+            url=self.config["westmint"]["endpoint"],
+            type_registry_preset="westend"
         )
         return interface
 
-    def transfer_call(self, substrate: SubstrateInterface, power_MWh: int, power_producer_address: str) -> tp.Any:
-        # call = substrate.compose_call(
-        #     call_module="Assets",
-        #     call_function="transfer",
-        #     call_params={
-        #         "id": self.config["statemine"]["token_id"],
-        #         # station account who generated power
-        #         "target": {"Id": power_producer_address},
-        #         "amount": str(power_MWh),
-        #     },
-        # )
-
+    def transfer_call(self, substrate: SubstrateInterface, power_MWh: int, payment_account_address: str) -> tp.Any:
         call = substrate.compose_call(
             call_module="Assets",
-            call_function="burn",
+            # To make transfer of new assets to target account it should shave enough native tokens to
+            # supply value of our asset
+            call_function="transfer",
             call_params={
-                "id": self.config["statemine"]["token_id"],
-                "who": {"Id": self.statemine_keypair.ss58_address}, # power_producer_address
+                "id": self.config["westmint"]["token_id"],
+                "target": {"Id": payment_account_address},
                 "amount": str(power_MWh),
             },
         )
 
         return call
 
-    def transfer_tokens_for_generated_power(self, power: int, power_producer_address: str) -> None:
-        substrate = self.statemine_connect()
-        extrinsic = substrate.create_signed_extrinsic(
-            call=self.transfer_call(substrate, power, power_producer_address), keypair=self.statemine_keypair
+    def nft_get_available_item_id(self) -> int:
+        while True:
+            item_id = random.randint(1, 1000)
+            if not self.nft_assets_check_item_exists(item_id):
+                return item_id
+
+    def nft_assets_check_item_exists(self, item_id) -> bool:
+        val = self.substrate_interface.query(
+            module="Uniques",
+            storage_function="Asset",
+            params=[self.config["westmint"]["collection_id"], item_id]
+        ).value
+
+        if val is None:
+            return False
+
+        return True
+
+    def nft_mint_call(self, substrate: SubstrateInterface, payment_account_address: str, item_id: int) -> tp.Any:
+        call = substrate.compose_call(
+            call_module="Uniques",
+            call_function="mint",
+            call_params={
+                "collection": self.config["westmint"]["collection_id"],
+                "item": item_id,
+                "owner": {"Id": payment_account_address},
+            },
+        )
+
+        return call
+
+    def nft_add_metadata_to_item(self, substrate: SubstrateInterface, metadata: str, item_id: int) -> tp.Any:
+        call = substrate.compose_call(
+            call_module="Uniques",
+            call_function="set_metadata",
+            call_params={
+                "collection": self.config["westmint"]["collection_id"],
+                "item": item_id,
+                "data": metadata,
+                "is_frozen": False
+            },
+        )
+
+        return call
+
+    def transfer_tokens_for_generated_power(self, power: int, payment_account_address: str) -> bool:
+        extrinsic = self.substrate_interface.create_signed_extrinsic(
+            call=self.transfer_call(self.substrate_interface, power, payment_account_address), keypair=self.westmint_keypair
         )
         try:
-            receipt = substrate.submit_extrinsic(
+            receipt = self.substrate_interface.submit_extrinsic(
                 extrinsic, wait_for_inclusion=True)
+
+            if not receipt.is_success:
+                logger.error(
+                    f"Transaction failed, block : {receipt.block_hash}")
+                return False
+
             logger.info(
                 f"Tokens for {power} MW paid, transaction block : {receipt.block_hash}"
+            )
+            return True
+        except SubstrateRequestException as e:
+            logger.warning(
+                f"Something went wrong during extrinsic submission to Westmint: {e}"
+            )
+            return False
+
+    def mint_nft_for_power_producer(self, payment_account_address: str, item_id) -> bool:
+        extrinsic = self.substrate_interface.create_signed_extrinsic(
+            call=self.nft_mint_call(self.substrate_interface, payment_account_address, item_id), keypair=self.westmint_keypair
+        )
+        try:
+            receipt = self.substrate_interface.submit_extrinsic(
+                extrinsic, wait_for_inclusion=True)
+
+            if not receipt.is_success:
+                logger.error(
+                    f"Transaction failed, block : {receipt.block_hash}")
+                return False
+
+            logger.info(
+                f"NFT minted (ID {item_id}), transaction block : {receipt.block_hash}"
+            )
+            return True
+        except SubstrateRequestException as e:
+            logger.warning(
+                f"Something went wrong during extrinsic submission to Westmint: {e}"
+            )
+            return False
+
+    def add_metdata_to_nft_item(self, metadata: str, item_id: int) -> bool:
+        extrinsic = self.substrate_interface.create_signed_extrinsic(
+            call=self.nft_add_metadata_to_item(self.substrate_interface, metadata, item_id), keypair=self.westmint_keypair
+        )
+        try:
+            receipt = self.substrate_interface.submit_extrinsic(
+                extrinsic, wait_for_inclusion=True)
+
+            if not receipt.is_success:
+                logger.error(
+                    f"Transaction failed, block : {receipt.block_hash}")
+                return False
+
+            logger.info(
+                f"Metadata added, transaction block : {receipt.block_hash}"
             )
             return True
         except SubstrateRequestException as e:
@@ -123,47 +210,27 @@ class FootprintService:
             )
             return False
 
-    def get_not_paid_produced_power(self, station_id: str) -> float:
-        station_data_file_path = f"./data/{station_id}"
-        if os.path.exists(station_data_file_path):
-            with open(station_data_file_path) as f:
-                produced_total = float(f.readline().split(": ")[1])  # in MW
-        else:
-            produced_total = 0
+    def create_nft_for_generated_power(self, station: PVStation) -> bool:
+        nft_item_id = self.nft_get_available_item_id()
 
-        return produced_total
+        if not self.mint_nft_for_power_producer(station.payment_account_address, nft_item_id):
+            logger.error("Failed to create nft for generated power!")
+            return False
 
-    def save_not_paid_produced_power(self, station_id: str, produced_power: float):
-        data_folder_path = "./data"
-        if not os.path.isdir(data_folder_path):
-            os.mkdir(data_folder_path)
+        metadata = PVStationNFTMetadata(power_mw=station.power_generated_for_sale,
+                                        owner_addr=station.payment_account_address, price=station.power_generated_for_sale)
 
-        with open(f"{data_folder_path}/{station_id}", "w") as f:
-            f.write(f"{time.time()}: {produced_power}")
+        if not self.add_metdata_to_nft_item(str(metadata), nft_item_id):
+            logger.error("Failed to add metdata to nft!")
+            return False
 
-        logger.info(
-            f"Recording (not paid) {produced_power} MW for {station_id}")
+        return True
 
-    def save_produced_energy(self, station_plug_address: str, station_data: tp.Tuple[int, str]) -> None:
-
+    def save_produced_energy(self, station_data: tp.Tuple[int, str]) -> None:
         station = PVStation.from_json(ast.literal_eval(station_data[1]))
-
-        produced_sum = self.get_not_paid_produced_power(
-            station.get_station_unique_id()) + station.power_generated_MWh
-        produced_sum_int = int(produced_sum)
-
-        if produced_sum_int > 0:
-            # Pay to producer for generated energy
-            if self.transfer_tokens_for_generated_power(produced_sum_int, station_plug_address):
-                not_paid_power = produced_sum - produced_sum_int
-                # Record how many tokens were transferd to whom
-                # self.interface.record_datalog(
-                #     f"burned: {total_burned + tons}")
-        else:
-            not_paid_power = produced_sum
-
-        self.save_not_paid_produced_power(
-            station.get_station_unique_id(), not_paid_power)
+        if int(station.power_generated_for_sale) > 0:
+            if not self.create_nft_for_generated_power(station):
+                return
 
     def get_last_data(self) -> None:
         threading.Timer(self.config["service"]
@@ -181,9 +248,9 @@ class FootprintService:
             if data is not None:
                 # logger.info(
                 #     f"Fetched data from pluged PV power station: {data}")
-                self.save_produced_energy(station_plug_address, data)
+                self.save_produced_energy(data)
 
 
 if __name__ == "__main__":
-    m = FootprintService()
+    m = PVService()
     threading.Thread(target=m.get_last_data).start()
