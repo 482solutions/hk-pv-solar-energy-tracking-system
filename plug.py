@@ -1,3 +1,4 @@
+import sys
 import time
 import robonomicsinterface as RI
 import json
@@ -53,7 +54,7 @@ class PlugMonitoring:
         twins_num = self.interface.custom_chainstate("DigitalTwin", "Total")
         if twins_num.value is None:
             logger.error(
-                "Please create digital twin from service_address account to proceed with station plug communication!")
+                "Please create digital twin from service_address account to proceed with station plug communication and restart service!")
             return
 
         twin_id = None
@@ -68,7 +69,7 @@ class PlugMonitoring:
         if twin_id is None:
             logger.error(
                 f"Twin id where owner is {self.service_address} was not found. Please create digital twin to proceed!")
-            return
+            sys.exit(1)
 
         logger.info(f"Twin id : {twin_id}")
         topics = self.interface.custom_chainstate(
@@ -97,8 +98,12 @@ class PlugMonitoring:
     def solar_panel_data_simulator(self, message: str) -> None:
         pv_station = PVStation(**json.loads(message))
         # logger.info(f"Received PV power station data : {pv_station}")
-        # Idea is that we are sending data each hour, as we measure of generated PV power in MW per hour
-        if (time.time() - self.prev_time_sending) > self.config['sending_timeout']:
+        if (time.time() - self.prev_time_sending) > self.config['sending_timeout'] and \
+                pv_station.power_reserved > 1:
+            pv_station.power_generated_for_sale = int(
+                pv_station.power_reserved)
+            pv_station.power_reserved -= pv_station.power_generated_for_sale
+            pv_station.update_produced_power_data()
             self.prev_time_sending = time.time()
             threading.Thread(target=self.send_datalog,
                              name="DatalogSender", args=[pv_station]).start()
@@ -135,8 +140,7 @@ if __name__ == '__main__':
 
     while True:
         station = PVStation.from_yaml(args.yaml_station_data)
-        station.power_generated_MWh = random.uniform(0, 1)
         station.power_generation_timestamp = time.time()
+        station.update_produced_power_data(random.uniform(0, 1))
 
         monitor.solar_panel_data_simulator(station.to_json())
-        time.sleep(60)
