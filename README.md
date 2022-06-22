@@ -36,7 +36,7 @@ To make it work we need to conect both components togeter.
 
 For now there is no way to get some tokens for testing on Robonomics network, so we running Robonomics node locally.
 
-*Note*: after we have tokens for Robonomics networks, we will configure it and it will be much easier to run it.
+**Note**: after we have tokens for Robonomics networks, we will configure it and it will be much easier to run it.
 
 To run Robonomics node locally please check this [tutorial](https://wiki.robonomics.network/docs/en/run-dev-node/).
 
@@ -56,7 +56,7 @@ python service.py
 ```
 python plug.py --yaml-station-data test/station_1.yaml --station-config config/config_station_1.yaml
 ```
-- If you didn't provide seed phrase new account will be created, in log messages you will find it address and messages that tokens are required. To proceed, send tokens from predefined account to that address, after that program execution will continue.
+- **Note** If you didn't provide seed phrase new account will be created, in log messages you will find it address and messages that tokens are required. To proceed, send tokens from predefined account to that address, after that program execution will continue.
 
 ## Flow
 
