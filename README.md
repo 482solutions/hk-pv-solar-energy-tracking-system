@@ -1,6 +1,6 @@
 # pv-solar-energy-tracking-system
 
-This repository contains BE part for produced renewable energy tracking system on Polkadot ecosystem.
+This repository contains BE part of DAPP for renewable energy trading platform on Polkadot ecosystem.
 
 # Idea
 
