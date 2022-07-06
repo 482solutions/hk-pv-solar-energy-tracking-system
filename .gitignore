@@ -157,3 +157,10 @@ cython_debug/
 
 # Generated files
 data/*
+
+#logs
+logs/*
+
+#setup script
+robonomics
+*.sh

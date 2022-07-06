@@ -31,6 +31,25 @@ Also there is some common model class `pv_station.py` which represents data whic
 
 To make it work we need to conect both components togeter.
 
+## Quick start
+A makefile is created to check your current python version and download all pre-requisites including robonomics along with python dependencies.
+Make file will create a .sh file to execute all relevant scripts. All logs will be stored in the local logs folder.
+
+Run makefile default to begin setup
+```
+make
+```
+
+To stop all service
+```
+make stop
+```
+
+To clean logs files
+```
+make clean
+```
+
 ## Robonomics and Westmint connection
 
 For now there is no way to get some tokens for testing on Robonomics network, so we running Robonomics node locally.
@@ -56,11 +75,12 @@ python service.py
 ```
 8. Start `plug_device.py` with parameters (e.g.):
 ```
-python plug.py --yaml-station-data test/station_1.yaml --station-config config/config_station_1.yaml
+python plug_device.py --yaml-station-data test/station_1.yaml --station-config config/config_station_1.yaml
 ```
 - **Note** If you didn't provide seed phrase new account will be created, in log messages you will find it address and messages that tokens are required. To proceed, send tokens from predefined account to that address, after that program execution will continue.
 
 9. Data logs will be created every 360 seconds. It can be viewed in robonomics node via web application. Go to `Developer -> Chain state -> select datalog + datalogIndex' and you should see that start or end counter is not zero. 
+
 
 ## Flow
 
