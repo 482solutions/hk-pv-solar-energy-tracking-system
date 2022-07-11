@@ -2,6 +2,17 @@
 
 This repository contains BE part of DAPP for renewable energy trading platform on Polkadot ecosystem. Here we have logic for basic data emulation,uplaoding it to Robonomics parachain and creating NFTs on Westmint.
 
+## Table of Contents
+
+- [Table of Contents](#table-of-contents)
+- [Idea](#idea)
+- [Use cases](#use-cases)
+- [Repository structure](#repository-structure)
+- [How to run](#how-to-run)
+   - [Robonomics and Westmint connection](#robonomics-and-westmint-connection)
+   - [Flow](#flow)
+- [Future development](#future-development)
+
 # Idea
 
 Using our project it is possible to connect individual power generation source (e.g. solar panel) to [Robonomics](https://robonomics.network/) network (one of [Polkadot](https://polkadot.network/) parachain). Information about produced power will be added to Robonomics parachain and shared with Westmint(from [Westend](https://polkadot.network/blog/westend-introducing-a-new-testnet-for-polkadot-and-kusama/) test newtork) parachain. Also we can use Statemine or Statemint parachains for the same purpouse.
