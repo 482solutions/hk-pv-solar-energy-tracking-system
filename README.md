@@ -1,6 +1,6 @@
 # pv-solar-energy-tracking-system
 
-This repository contains BE part of DAPP for renewable energy trading platform on Polkadot ecosystem.
+This repository contains BE part of DAPP for renewable energy trading platform on Polkadot ecosystem. Here we have logic for basic data emulation,uplaoding it to Robonomics parachain and creating NFTs on Westmint.
 
 # Idea
 
