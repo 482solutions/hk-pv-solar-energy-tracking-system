@@ -26,7 +26,7 @@ As a token, we use custom PVSE token on Westmint parachain. So, when energy whic
 
 So, usage scenario is very simple:
 1. Connect device which produve renewable energy to Robonomics networks;
-2. Provice address where you want to receive reward for generated energy;
+2. Provide address where you want to receive reward for generated energy;
 3. NFT will be generated automatically and send to specified owner account;
 4. After energy will be sold, owner will receive PVSE tokens to his/her account on Westmint parachain;
 
