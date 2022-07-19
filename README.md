@@ -43,25 +43,6 @@ Also there is some common model class `pv_station.py` which represents data whic
 
 To make it work we need to conect both components togeter.
 
-## Quick start
-A makefile is created to check your current python version and download all pre-requisites including robonomics along with python dependencies.
-Make file will create a .sh file to execute all relevant scripts. All logs will be stored in the local logs folder.
-
-Run makefile default to begin setup
-```
-make
-```
-
-To stop all service
-```
-make stop
-```
-
-To clean logs files
-```
-make clean
-```
-
 ## Robonomics and Westmint connection
 
 For now there is no way to get some tokens for testing on Robonomics network, so we running Robonomics node locally.
