@@ -148,3 +148,5 @@ if __name__ == "__main__":
         monitor.solar_panel_data_simulator(station.to_json())
         # Update generated value each 360 seconds
         time.sleep(360)
+
+# there was timeout for 6 mins (create new datalog each 6 mins)
