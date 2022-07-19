@@ -18,11 +18,6 @@ def on_subscribe(mqttc, obj, mid, granted_qos):
 def on_log(mqttc, obj, level, string):
     print("logs",string)
 
-# client = mqtt.Client()
-# client.username_pw_set("etbuyegy", "1kAeZUnvChLy")
-# client.connect("driver.cloudmqtt.com", 18833)
-# client.subscribe("Power_Monitoring")
-
 mqttc = mqtt.Client()
 mqttc.on_message = on_message
 mqttc.on_connect = on_connect
