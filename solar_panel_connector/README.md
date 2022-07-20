@@ -6,3 +6,8 @@ The set of solar panels in SIT have been equipped with multiple sensors to detec
 
 # Current development
 A simple MQTT client script has been written to subscribe to MQTT broker. The topic is "Power_Monitoring". For testing purposes, a default username and password have been hardcoded into the script. In the future, we'll have to take that out.
+
+# What we are receiving now
+1) Power
+2) Current
+3) Voltage
