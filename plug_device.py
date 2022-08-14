@@ -8,9 +8,11 @@ import logging
 import argparse
 import threading
 import hashlib
+import solar_panel_connector.mqtt_client as mqttc
 
 from substrateinterface import Keypair
 from pv_station import PVStation
+from threading import Thread
 
 logger = logging.getLogger(__name__)
 logger.propagate = False
@@ -18,6 +20,19 @@ handler = logging.StreamHandler()
 logger.addHandler(handler)
 logger.setLevel(logging.INFO)
 
+class custom_thread(Thread):
+    def __init__(self, group=None, target=None, name=None,
+                 args=(), kwargs={}, Verbose=None):
+        Thread.__init__(self, group, target, name, args, kwargs)
+        self._return = None
+    def run(self):
+        print(type(self._target))
+        if self._target is not None:
+            self._return = self._target(*self._args,
+                                                **self._kwargs)
+    def join(self, *args):
+        Thread.join(self, *args)
+        return self._return
 
 class PlugMonitoring:
     def __init__(self, config_file_path) -> None:
@@ -142,6 +157,18 @@ if __name__ == "__main__":
 
     while True:
         station = PVStation.from_yaml(args.yaml_station_data)
+        
+        a = custom_thread(target=mqttc.run)
+        b = custom_thread(target=mqttc.run)
+
+        print('starting a')
+        a.start()
+        print('starting b')
+        b.start()
+        
+        print(a.join())
+        print(b.join())
+
         station.power_generation_timestamp = time.time()
         station.update_produced_power_data(random.uniform(0, 1))
 
