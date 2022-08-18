@@ -70,13 +70,14 @@ class custom_thread(Thread):
         return self._return
 
 if __name__ == "__main__":
+    #For testing purposes
     a = custom_thread(target=run)
     b = custom_thread(target=run)
     print('starting a')
     a.start()
     print('starting b')
     b.start()
-    
+    print(a.is_alive())
     print(a.join())
     print(b.join())
         
