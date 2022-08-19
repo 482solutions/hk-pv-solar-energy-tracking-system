@@ -1,3 +1,4 @@
+from socket import timeout
 import sys
 import time
 import robonomicsinterface as RI
@@ -8,9 +9,12 @@ import logging
 import argparse
 import threading
 import hashlib
+import solar_panel_connector.mqtt_client as mqttc
 
+from queue import Queue
 from substrateinterface import Keypair
 from pv_station import PVStation
+from threading import Thread
 
 logger = logging.getLogger(__name__)
 logger.propagate = False
@@ -18,6 +22,19 @@ handler = logging.StreamHandler()
 logger.addHandler(handler)
 logger.setLevel(logging.INFO)
 
+class custom_thread(Thread):
+    def __init__(self, group=None, target=None, name=None,
+                 args=(), kwargs={}, Verbose=None):
+        Thread.__init__(self, group, target, name, args, kwargs)
+        self._return = None
+    def run(self):
+        print(type(self._target))
+        if self._target is not None:
+            self._return = self._target(*self._args,
+                                                **self._kwargs)
+    def join(self, *args):
+        Thread.join(self, *args)
+        return self._return
 
 class PlugMonitoring:
     def __init__(self, config_file_path) -> None:
@@ -126,6 +143,25 @@ class PlugMonitoring:
 
         return config_file
 
+    def solar_panel_emulator(self, station, queue, timeframe):
+        while True:
+            station.power_generation_timestamp = time.time()
+            station.update_produced_power_data(random.uniform(0, 1))
+            queue.put(station.to_json)
+            logger.info(f"Queue size: {queue.qsize()}")
+            time.sleep(timeframe)
+
+    def solar_panel_mqtt(self, station, queue):
+        data = None
+        while True:
+            if data is None:
+                logger.info(f"running mqtt")
+                data = mqttc.run()
+                logger.info(f"data from mqtt: {data}")
+                station.power_generation_timestamp = data['Timestamp']
+                station.update_produced_power_data(float(data['Power']))
+                queue.put(station.to_json)
+                data = None
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
@@ -140,13 +176,37 @@ if __name__ == "__main__":
 
     monitor = PlugMonitoring(args.station_config)
 
+    #FIFO queue
+    queue = Queue()    
+    station_1 = PVStation.from_yaml(args.yaml_station_data)
+    station_2 = PVStation.from_yaml(args.yaml_station_data)
+    
+    #Starting solar panel data from mqtt, data will be stored in FIFO queue
+    t1 = Thread(target=monitor.solar_panel_mqtt, args=[station_1, queue])
+
+    #Starting solar panel emulator with 10 seconds delay, data will be stored in FIFO queue
+    t2 = Thread(target=monitor.solar_panel_emulator,
+                                name="Solar_Panel_Emulator", args=[station_2, queue, 10])
+
+    #Starting solar panel emulator with 20 seconds delay, data will be stored in FIFO queue
+    t3 = Thread(target=monitor.solar_panel_emulator,
+                                name="Solar_Panel_Emulator", args=[station_2, queue, 20])
+
+
+    logger.info(f"starting t1")
+    t1.start()
+
+    logger.info(f"starting t2")
+    t2.start()
+
+    logger.info(f"starting t3")
+    t3.start()
+
+    #While loop to dequeue and send datalog
     while True:
-        station = PVStation.from_yaml(args.yaml_station_data)
-        station.power_generation_timestamp = time.time()
-        station.update_produced_power_data(random.uniform(0, 1))
+        if queue.qsize() > 0:
+            data = queue.get()
+            logger.info(f"From datalog Queue size: {queue.qsize()}")
+            logger.info(f"Value: {data}")
+            monitor.send_datalog(data)
 
-        monitor.solar_panel_data_simulator(station.to_json())
-        # Update generated value each 360 seconds
-        time.sleep(360)
-
-# there was timeout for 6 mins (create new datalog each 6 mins)
