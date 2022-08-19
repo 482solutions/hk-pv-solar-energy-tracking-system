@@ -54,7 +54,8 @@ def run():
     mqttc.subscribe("Power_Monitoring", 0)
     mqttc.loop_forever() 
     return to_json
-    
+
+# Needed?     
 class custom_thread(Thread):
     def __init__(self, group=None, target=None, name=None,
                  args=(), kwargs={}, Verbose=None):
@@ -69,17 +70,6 @@ class custom_thread(Thread):
         Thread.join(self, *args)
         return self._return
 
-if __name__ == "__main__":
-    #For testing purposes
-    a = custom_thread(target=run)
-    b = custom_thread(target=run)
-    print('starting a')
-    a.start()
-    print('starting b')
-    b.start()
-    print(a.is_alive())
-    print(a.join())
-    print(b.join())
         
     
     
